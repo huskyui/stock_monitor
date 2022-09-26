@@ -31,7 +31,7 @@ public class StockInfoServiceImpl implements StockInfoService {
         stockInfo.setPrice(new BigDecimal(stockInfoArr[3]));
         stockInfo.setPriceDiff(new BigDecimal(stockInfoArr[4]));
         stockInfo.setDiffPercent(new BigDecimal(stockInfoArr[5]));
-        stockInfo.setDate(DateUtil.getDayStartDate(new Date()));
+        stockInfo.setDate(new Date());
         return stockInfo;
     }
 
