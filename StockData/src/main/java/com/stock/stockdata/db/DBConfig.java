@@ -14,6 +14,9 @@ public class DBConfig {
     private String address;
     @Value("${clickhouse.username}")
     private String username;
+    @Value("${clickhouse.password}")
+    private String password;
+
     @Value("${clickhouse.db}")
     private String db;
 
@@ -21,6 +24,7 @@ public class DBConfig {
     public Connection getConnection() {
         ClickHouseProperties properties = new ClickHouseProperties();
         properties.setUser(username);
+        properties.setPassword(password);
         properties.setDatabase(db);
         properties.setSocketTimeout(60000);
         ClickHouseDataSource clickHouseDataSource = new ClickHouseDataSource(address, properties);
