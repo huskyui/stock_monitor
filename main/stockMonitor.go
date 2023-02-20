@@ -22,20 +22,17 @@ import (
 )
 
 func main() {
-	wechatDemo()
-	//stockNum := "sh600009"
-	//stockInfo := getStockInfo(stockNum)
-	//writeData(&stockInfo)
-	//influxSimpleQuery()
-	//friends.SendText(stockInfo.name)
-
-
-
-	//cronFunc()
+	wechatBot := startWechat()
+	scheduleFetchStockInfoAndNotify(wechatBot)
+	blockWechatBot(wechatBot)
 }
 
-func wechatDemo(){
-	//bot := openwechat.DefaultBot()
+func blockWechatBot(weChatBot *openwechat.Bot){
+	weChatBot.Block()
+}
+
+
+func startWechat() *openwechat.Bot{
 	bot := openwechat.DefaultBot(openwechat.Desktop) // 桌面模式，上面登录不上的可以尝试切换这种模式
 
 	// 注册消息处理函数
@@ -51,24 +48,34 @@ func wechatDemo(){
 	if err := bot.Login(); err != nil {
 		fmt.Println(err)
 	}
+	return bot
+}
 
-	// 获取登陆的用户
-	self, err := bot.GetCurrentUser()
-	if err != nil {
-		fmt.Println(err)
+func sendWeChatMsg(weChatBot *openwechat.Bot,stockInfo stock){
+	user, err := weChatBot.GetCurrentUser()
+	if err!=nil {
+		log.Fatal(err)
 	}
+	friends, err := user.Friends()
+	if err!=nil {
+		log.Fatal(err)
+	}
+	message := "[股票名称]"+stockInfo.name +"[当前价格]"+ fmt.Sprintf("%v",stockInfo.currentPrice)
+	friends.SendText(message)
 
-	// 获取所有的好友
-	friends, err := self.Friends()
+}
 
-	stockNum := "sh600009"
-	stockInfo := getStockInfo(stockNum)
-	friends.SendText(stockInfo.name)
-	friends.SendText(fmt.Sprintf("%v",stockInfo.currentPrice))
-	bot.Block()
-
-
-
+func scheduleFetchStockInfoAndNotify(weChatBot *openwechat.Bot){
+	c := cron.New()
+	err := c.AddFunc("* * * ? * *", func() {
+		stockNum := "sh600009"
+		stockInfo := fetchStockInfo(stockNum)
+		sendWeChatMsg(weChatBot,stockInfo)
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	c.Start()
 }
 
 func cronFunc() {
@@ -93,7 +100,7 @@ func setTimeZone() {
 	os.Setenv("TZ", "Asia/Shanghai")
 }
 
-func getStockInfo(stockNum string) stock {
+func fetchStockInfo(stockNum string) stock {
 	url := fmt.Sprintf("http://qt.gtimg.cn/q=s_%s", stockNum)
 	resp, err := http.Get(url)
 	if err != nil {
