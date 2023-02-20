@@ -67,7 +67,7 @@ func sendWeChatMsg(weChatBot *openwechat.Bot,stockInfo stock){
 
 func scheduleFetchStockInfoAndNotify(weChatBot *openwechat.Bot){
 	c := cron.New()
-	err := c.AddFunc("* * * ? * *", func() {
+	err := c.AddFunc("0 * * ? * *", func() {
 		stockNum := "sh600009"
 		stockInfo := fetchStockInfo(stockNum)
 		sendWeChatMsg(weChatBot,stockInfo)
