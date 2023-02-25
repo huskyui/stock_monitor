@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/DanPlayer/randomname"
-	"github.com/eatmoreapple/openwechat"
-	"github.com/gin-gonic/gin"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 	"github.com/robfig/cron"
@@ -22,66 +19,24 @@ import (
 )
 
 func main() {
-	wechatBot := startWechat()
-	scheduleFetchStockInfoAndNotify(wechatBot)
-	blockWechatBot(wechatBot)
+	setTimeZone()
+	scheduleFetchStockInfoAndNotify()
 }
 
-func blockWechatBot(weChatBot *openwechat.Bot){
-	weChatBot.Block()
+func logMsg(stockInfo stock) {
+	message := "[股票名称]" + stockInfo.name + "[当前价格]" + fmt.Sprintf("%v", stockInfo.currentPrice)
+	fmt.Println(message)
 }
 
-
-func startWechat() *openwechat.Bot{
-	bot := openwechat.DefaultBot(openwechat.Desktop) // 桌面模式，上面登录不上的可以尝试切换这种模式
-
-	// 注册消息处理函数
-	bot.MessageHandler = func(msg *openwechat.Message) {
-		if msg.IsText() && msg.Content == "ping" {
-			msg.ReplyText("pong")
-		}
-	}
-	// 注册登陆二维码回调
-	bot.UUIDCallback = openwechat.PrintlnQrcodeUrl
-
-	// 登陆
-	if err := bot.Login(); err != nil {
-		fmt.Println(err)
-	}
-	return bot
-}
-
-func sendWeChatMsg(weChatBot *openwechat.Bot,stockInfo stock){
-	user, err := weChatBot.GetCurrentUser()
-	if err!=nil {
-		log.Fatal(err)
-	}
-	friends, err := user.Friends()
-	if err!=nil {
-		log.Fatal(err)
-	}
-	message := "[股票名称]"+stockInfo.name +"[当前价格]"+ fmt.Sprintf("%v",stockInfo.currentPrice)
-	friends.SendText(message)
-
-}
-
-func scheduleFetchStockInfoAndNotify(weChatBot *openwechat.Bot){
-	c := cron.New()
-	err := c.AddFunc("0 * * ? * *", func() {
-		stockNum := "sh600009"
-		stockInfo := fetchStockInfo(stockNum)
-		sendWeChatMsg(weChatBot,stockInfo)
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	c.Start()
-}
-
-func cronFunc() {
+func scheduleFetchStockInfoAndNotify() {
 	c := cron.New()
 	err := c.AddFunc("* * * ? * *", func() {
-		fmt.Println(time.Now(), "hello cron")
+		stockNum := "sh600009"
+		stockInfo := fetchStockInfo(stockNum)
+		logMsg(stockInfo)
+		writeData(&stockInfo)
+		influxSimpleQuery()
+
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -97,7 +52,10 @@ type stock struct {
 }
 
 func setTimeZone() {
-	os.Setenv("TZ", "Asia/Shanghai")
+	err := os.Setenv("TZ", "Asia/Shanghai")
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func fetchStockInfo(stockNum string) stock {
@@ -106,7 +64,12 @@ func fetchStockInfo(stockNum string) stock {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(resp.Body)
 	if resp.StatusCode == http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -142,8 +105,9 @@ func influxSimpleQuery() {
 	queryApi := client.QueryAPI(org)
 
 	query := `from(bucket: "mydb")
-			|> range(start: -10m)
-			|> filter(fn: (r) => r._measurement == "stockmeasurement")`
+			|> range(start: -20m)
+			|> filter(fn: (r) => r._measurement == "stockmeasurement")
+            |> mean()`
 	results, err := queryApi.Query(context.Background(), query)
 	if err != nil {
 		log.Fatal(err)
@@ -155,28 +119,6 @@ func influxSimpleQuery() {
 		log.Fatal(err)
 	}
 
-}
-
-func simpleGinWebServer() {
-	r := gin.Default()
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message":    "pong",
-			"additional": "fuck u!",
-		})
-	})
-	r.GET("/favicon.ico", func(c *gin.Context) {
-		c.JSON(http.StatusGatewayTimeout, gin.H{
-			"message": "this is favicon.ico",
-		})
-	})
-	r.GET("/random", func(c *gin.Context) {
-		name := randomname.GenerateName()
-		c.JSON(http.StatusOK, gin.H{
-			"nickname": name,
-		})
-	})
-	r.Run()
 }
 
 func writeData(stockInfo *stock) {
@@ -197,7 +139,6 @@ func writeData(stockInfo *stock) {
 	if err := writeApi.WritePoint(context.Background(), point); err != nil {
 		log.Fatal(err)
 	}
-
 }
 
 func createInfluxClient() influxdb2.Client {
