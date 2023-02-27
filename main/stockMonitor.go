@@ -9,6 +9,7 @@ import (
 	"github.com/robfig/cron"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
+	"gopkg.in/gomail.v2"
 	"io"
 	"log"
 	"net/http"
@@ -23,14 +24,29 @@ func main() {
 	scheduleFetchStockInfoAndNotify()
 }
 
+func sendEmail(title, body string) {
+	m := gomail.NewMessage()
+	m.SetHeader("From", "2207019991@qq.com")
+	m.SetHeader("To", "wangpeng91710@gmail.com")
+	m.SetHeader("Subject", title)
+	m.SetBody("text/html", body)
+
+	d := gomail.NewDialer("smtp.qq.com", 465, "2207019991@qq.com", os.Getenv("QQ_MAIL_PASSWORD"))
+
+	// Send the email to Bob, Cora and Dan.
+	if err := d.DialAndSend(m); err != nil {
+		panic(err)
+	}
+}
+
 func logMsg(stockInfo stock) {
 	message := "[股票名称]" + stockInfo.name + "[当前价格]" + fmt.Sprintf("%v", stockInfo.currentPrice)
-	fmt.Println(message)
+	sendEmail("股票价格", message)
 }
 
 func scheduleFetchStockInfoAndNotify() {
 	c := cron.New()
-	err := c.AddFunc("* * * ? * *", func() {
+	err := c.AddFunc("0 * * ? * *", func() {
 		stockNum := "sh600009"
 		stockInfo := fetchStockInfo(stockNum)
 		logMsg(stockInfo)
