@@ -39,9 +39,8 @@ func sendEmail(title, body string) {
 	}
 }
 
-func logMsg(stockInfo stock) {
-	message := "[股票名称]" + stockInfo.name + "[当前价格]" + fmt.Sprintf("%v", stockInfo.currentPrice)
-	sendEmail("股票价格", message)
+func logMsg(stockInfo Stock) {
+	sendEmail("股票价格", stockInfo.String())
 }
 
 func scheduleFetchStockInfoAndNotify() {
@@ -61,10 +60,14 @@ func scheduleFetchStockInfoAndNotify() {
 	select {}
 }
 
-type stock struct {
+type Stock struct {
 	name         string
 	id           string
 	currentPrice float64
+}
+
+func (stock Stock) String() string {
+	return fmt.Sprintf("[股票名称]%s[当前价格]%v", stock.name, stock.currentPrice)
 }
 
 func setTimeZone() {
@@ -74,7 +77,7 @@ func setTimeZone() {
 	}
 }
 
-func fetchStockInfo(stockNum string) stock {
+func fetchStockInfo(stockNum string) Stock {
 	url := fmt.Sprintf("http://qt.gtimg.cn/q=s_%s", stockNum)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -101,9 +104,9 @@ func fetchStockInfo(stockNum string) stock {
 		if err != nil {
 			log.Fatal(err)
 		}
-		return stock{name: stockInfoArr[1], id: stockNum, currentPrice: currentPrice}
+		return Stock{name: stockInfoArr[1], id: stockNum, currentPrice: currentPrice}
 	}
-	return stock{}
+	return Stock{}
 }
 
 func GbkToUtf8(s []byte) ([]byte, error) {
@@ -137,7 +140,7 @@ func influxSimpleQuery() {
 
 }
 
-func writeData(stockInfo *stock) {
+func writeData(stockInfo *Stock) {
 	client := createInfluxClient()
 	org := "huskyui"
 	bucket := "mydb"
